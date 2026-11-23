@@ -7,10 +7,8 @@ from logic import get_student_financial_summary
 
 OUTPUT_DIR = "generated_docs"
 
-
 def ensure_output_dir():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-
 
 def generate_receipt_pdf(receipt_no: str) -> str:
     ensure_output_dir()
@@ -48,7 +46,7 @@ def generate_receipt_pdf(receipt_no: str) -> str:
     status_label = "OFFICIAL FEES RECEIPT (VOIDED)" if pay["is_voided"] else "OFFICIAL FEES RECEIPT"
     c.drawCentredString(width / 2, y, status_label)
     y -= 20
-          details = [
+    details = [
         ("Receipt No:", pay["receipt_no"]),
         ("Date:", pay["payment_date"]),
         ("Student Name:", f"{st['full_name']} ({st['student_code']})"),
@@ -92,7 +90,6 @@ def generate_receipt_pdf(receipt_no: str) -> str:
     c.save()
     return filepath
 
-
 def generate_clearance_pass_pdf(student_id: int) -> str:
     ensure_output_dir()
     cfg = get_all_settings()
@@ -128,4 +125,3 @@ def generate_clearance_pass_pdf(student_id: int) -> str:
 
     c.save()
     return filepath
-  
