@@ -4,7 +4,6 @@ from datetime import datetime
 from database import get_connection, hash_password, log_audit
 from settings import get_setting
 
-
 def authenticate_user(username: str, password: str):
     conn = get_connection()
     user = conn.execute(
@@ -13,7 +12,6 @@ def authenticate_user(username: str, password: str):
     ).fetchone()
     conn.close()
     return dict(user) if user else None
-
 
 def add_student(
     student_code, full_name, class_level, stream, residence,
@@ -46,7 +44,6 @@ def add_student(
     conn.close()
     log_audit(username, "ADD_STUDENT", f"Registered {student_code.upper()}")
 
-
 def add_fee_item(
     academic_year, term, class_level, residence,
     track, fee_item, amount, username,
@@ -66,7 +63,8 @@ def add_fee_item(
     conn.commit()
     conn.close()
     log_audit(username, "ADD_FEE_ITEM", f"{class_level} {fee_item}: {amount}")
-    def get_student_financial_summary(student_id: int, academic_year=None, term=None) -> dict:
+
+def get_student_financial_summary(student_id: int, academic_year=None, term=None) -> dict:
     academic_year = academic_year or get_setting("current_year", "2026")
     term = term or get_setting("current_term", "Term 1")
     threshold_pct = float(get_setting("clearance_threshold_percent", "75"))
@@ -121,7 +119,6 @@ def add_fee_item(
         "is_cleared": is_cleared,
     }
 
-
 def record_payment(
     student_id: int, amount_paid: float, payment_method: str,
     external_ref: str, username: str, academic_year=None, term=None,
@@ -151,7 +148,8 @@ def record_payment(
     conn.close()
     log_audit(username, "RECORD_PAYMENT", f"Receipt {receipt_no}: Amount={amount_paid}")
     return receipt_no
-        def void_payment(receipt_no: str, reason: str, admin_username: str):
+
+def void_payment(receipt_no: str, reason: str, admin_username: str):
     if not reason.strip():
         raise ValueError("A void reason is mandatory.")
     conn = get_connection()
@@ -162,7 +160,6 @@ def record_payment(
     conn.commit()
     conn.close()
     log_audit(admin_username, "VOID_PAYMENT", f"Voided {receipt_no}: {reason}")
-
 
 def reconcile_csv_statements(csv_filepath: str, username: str) -> dict:
     matched, skipped, errors = 0, 0, []
@@ -207,7 +204,6 @@ def reconcile_csv_statements(csv_filepath: str, username: str) -> dict:
     log_audit(username, "CSV_RECONCILE", f"Matched {matched}, Skipped {skipped}")
     return {"matched": matched, "skipped": skipped, "errors": errors}
 
-
 def get_defaulters_list(class_filter: str = "ALL") -> list:
     conn = get_connection()
     if class_filter == "ALL":
@@ -225,7 +221,6 @@ def get_defaulters_list(class_filter: str = "ALL") -> list:
         if summary["balance"] > 0:
             defaulters.append(summary)
     return sorted(defaulters, key=lambda x: x["balance"], reverse=True)
-
 
 def rollover_term_or_year(promote_classes: bool, next_year: str, next_term: str, admin_username: str):
     promotion_map = {"S1": "S2", "S2": "S3", "S3": "S4", "S4": "S5", "S5": "S6", "S6": "ALUMNI"}
@@ -253,4 +248,3 @@ def rollover_term_or_year(promote_classes: bool, next_year: str, next_term: str,
     conn.commit()
     conn.close()
     log_audit(admin_username, "TERM_ROLLOVER", f"Rolled over to {next_year} {next_term}")
-    
