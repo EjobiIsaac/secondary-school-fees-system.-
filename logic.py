@@ -16,24 +16,17 @@ def authenticate_user(username: str, password: str):
 
 
 def add_student(
-    student_code: str,
-    full_name: str,
-    class_level: str,
-    stream: str,
-    residence: str,
-    track: str,
-    guardian_name: str,
-    guardian_phone: str,
-    bursary_discount: float,
-    carried_forward_balance: float,
-    username: str,
+    student_code, full_name, class_level, stream, residence,
+    track, guardian_name, guardian_phone, bursary_discount,
+    carried_forward_balance, username,
 ):
     conn = get_connection()
     conn.execute(
         """
         INSERT INTO students (
-            student_code, full_name, class_level, stream, residence, track,
-            guardian_name, guardian_phone, bursary_discount, carried_forward_balance
+            student_code, full_name, class_level, stream, residence,
+            track, guardian_name, guardian_phone, bursary_discount,
+            carried_forward_balance
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
@@ -51,33 +44,29 @@ def add_student(
     )
     conn.commit()
     conn.close()
-    log_audit(username, "ADD_STUDENT", f"Registered {student_code.upper()} - {full_name}")
+    log_audit(username, "ADD_STUDENT", f"Registered {student_code.upper()}")
 
 
 def add_fee_item(
-    academic_year: str,
-    term: str,
-    class_level: str,
-    residence: str,
-    track: str,
-    fee_item: str,
-    amount: float,
-    username: str,
+    academic_year, term, class_level, residence,
+    track, fee_item, amount, username,
 ):
     conn = get_connection()
     conn.execute(
         """
-        INSERT INTO fee_structures (academic_year, term, class_level, residence, track, fee_item, amount)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO fee_structures (
+            academic_year, term, class_level, residence, track, fee_item, amount
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (academic_year, term, class_level.upper(), residence.upper(), track.upper(), fee_item.strip(), float(amount)),
+        (
+            academic_year, term, class_level.upper(),
+            residence.upper(), track.upper(), fee_item.strip(), float(amount)
+        ),
     )
     conn.commit()
     conn.close()
-    log_audit(username, "ADD_FEE_ITEM", f"{class_level} {residence} ({track}) - {fee_item}: {amount}")
-
-
-def get_student_financial_summary(student_id: int, academic_year: str = None, term: str = None) -> dict:
+    log_audit(username, "ADD_FEE_ITEM", f"{class_level} {fee_item}: {amount}")
+    def get_student_financial_summary(student_id: int, academic_year=None, term=None) -> dict:
     academic_year = academic_year or get_setting("current_year", "2026")
     term = term or get_setting("current_term", "Term 1")
     threshold_pct = float(get_setting("clearance_threshold_percent", "75"))
@@ -88,7 +77,6 @@ def get_student_financial_summary(student_id: int, academic_year: str = None, te
         conn.close()
         raise ValueError("Student not found")
 
-    # Match applicable fees (specific track OR GENERAL track for that class & residence)
     fee_rows = conn.execute(
         """
         SELECT fee_item, amount FROM fee_structures
@@ -135,13 +123,8 @@ def get_student_financial_summary(student_id: int, academic_year: str = None, te
 
 
 def record_payment(
-    student_id: int,
-    amount_paid: float,
-    payment_method: str,
-    external_ref: str,
-    username: str,
-    academic_year: str = None,
-    term: str = None,
+    student_id: int, amount_paid: float, payment_method: str,
+    external_ref: str, username: str, academic_year=None, term=None,
 ) -> str:
     if amount_paid <= 0:
         raise ValueError("Payment amount must be greater than zero.")
@@ -159,17 +142,18 @@ def record_payment(
             payment_method, external_ref, payment_date, recorded_by
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (receipt_no, student_id, academic_year, term, float(amount_paid), payment_method, external_ref.strip(), pay_date, username),
+        (
+            receipt_no, student_id, academic_year, term, float(amount_paid),
+            payment_method, external_ref.strip(), pay_date, username
+        ),
     )
     conn.commit()
     conn.close()
-    log_audit(username, "RECORD_PAYMENT", f"Receipt {receipt_no}: StudentID={student_id}, Amount={amount_paid}")
+    log_audit(username, "RECORD_PAYMENT", f"Receipt {receipt_no}: Amount={amount_paid}")
     return receipt_no
-
-
-def void_payment(receipt_no: str, reason: str, admin_username: str):
+        def void_payment(receipt_no: str, reason: str, admin_username: str):
     if not reason.strip():
-        raise ValueError("A void reason is mandatory for audit compliance.")
+        raise ValueError("A void reason is mandatory.")
     conn = get_connection()
     conn.execute(
         "UPDATE payments SET is_voided = 1, void_reason = ? WHERE receipt_no = ?",
@@ -177,14 +161,10 @@ def void_payment(receipt_no: str, reason: str, admin_username: str):
     )
     conn.commit()
     conn.close()
-    log_audit(admin_username, "VOID_PAYMENT", f"Voided {receipt_no}. Reason: {reason}")
+    log_audit(admin_username, "VOID_PAYMENT", f"Voided {receipt_no}: {reason}")
 
 
 def reconcile_csv_statements(csv_filepath: str, username: str) -> dict:
-    """
-    Imports Bank/Mobile Money CSV with columns: student_code, amount, payment_method, reference
-    Matches against student_code and records un-imported transactions safely.
-    """
     matched, skipped, errors = 0, 0, []
     conn = get_connection()
 
@@ -201,19 +181,21 @@ def reconcile_csv_statements(csv_filepath: str, username: str) -> dict:
                 continue
 
             if not code or amount <= 0:
-                errors.append(f"Row {idx}: Missing student_code or non-positive amount")
+                errors.append(f"Row {idx}: Missing student_code or amount")
                 continue
 
-            # Prevent duplicate reference import
             if ref:
                 existing = conn.execute(
-                    "SELECT id FROM payments WHERE external_ref = ? AND is_voided = 0", (ref,)
+                    "SELECT id FROM payments WHERE external_ref = ? AND is_voided = 0",
+                    (ref,),
                 ).fetchone()
                 if existing:
                     skipped += 1
                     continue
 
-            student = conn.execute("SELECT id FROM students WHERE student_code = ?", (code,)).fetchone()
+            student = conn.execute(
+                "SELECT id FROM students WHERE student_code = ?", (code,)
+            ).fetchone()
             if not student:
                 errors.append(f"Row {idx}: Unknown student_code '{code}'")
                 continue
@@ -222,7 +204,7 @@ def reconcile_csv_statements(csv_filepath: str, username: str) -> dict:
             matched += 1
 
     conn.close()
-    log_audit(username, "CSV_RECONCILE", f"Imported {matched}, Skipped {skipped}, Errors {len(errors)}")
+    log_audit(username, "CSV_RECONCILE", f"Matched {matched}, Skipped {skipped}")
     return {"matched": matched, "skipped": skipped, "errors": errors}
 
 
@@ -232,7 +214,8 @@ def get_defaulters_list(class_filter: str = "ALL") -> list:
         students = conn.execute("SELECT id FROM students WHERE status = 'ACTIVE'").fetchall()
     else:
         students = conn.execute(
-            "SELECT id FROM students WHERE status = 'ACTIVE' AND class_level = ?", (class_filter,)
+            "SELECT id FROM students WHERE status = 'ACTIVE' AND class_level = ?",
+            (class_filter,),
         ).fetchall()
     conn.close()
 
@@ -245,10 +228,6 @@ def get_defaulters_list(class_filter: str = "ALL") -> list:
 
 
 def rollover_term_or_year(promote_classes: bool, next_year: str, next_term: str, admin_username: str):
-    """
-    Carries forward unpaid balances to the new term.
-    If promote_classes=True (end of year), moves S1->S2..S5->S6, and archives S4/S6 leavers if desired or S6->ALUMNI.
-    """
     promotion_map = {"S1": "S2", "S2": "S3", "S3": "S4", "S4": "S5", "S5": "S6", "S6": "ALUMNI"}
     conn = get_connection()
     active_students = conn.execute("SELECT * FROM students WHERE status = 'ACTIVE'").fetchall()
@@ -273,7 +252,5 @@ def rollover_term_or_year(promote_classes: bool, next_year: str, next_term: str,
     conn.execute("UPDATE settings SET value = ? WHERE key = 'current_term'", (next_term,))
     conn.commit()
     conn.close()
-    log_audit(
-        admin_username,
-        "TERM_ROLLOVER",
-  
+    log_audit(admin_username, "TERM_ROLLOVER", f"Rolled over to {next_year} {next_term}")
+    
